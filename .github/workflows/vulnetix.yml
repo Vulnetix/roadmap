@@ -12,8 +12,36 @@ env:
   VULNETIX_VERSION: latest
 
 jobs:
+  # A repository that has not been given the Vulnetix secrets yet is not broken;
+  # it simply has nowhere to publish. Without this gate every job in the matrix
+  # fails on "missing ApiKey or org for noninteractive login", so the repository
+  # carries a permanent red X on every push that names no secret and tells
+  # nobody what to do about it.
+  #
+  # The check is its own job because `secrets` is not available in a job-level
+  # `if:`; an output from a job that CAN read them is.
+  preflight:
+    name: Credentials
+    runs-on: ubuntu-latest
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          VULNETIX_ORG_ID: ${{ secrets.VULNETIX_ORG_ID }}
+          VULNETIX_API_KEY: ${{ secrets.VULNETIX_API_KEY }}
+        run: |
+          if [ -n "${VULNETIX_ORG_ID:-}" ] && [ -n "${VULNETIX_API_KEY:-}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::VULNETIX_ORG_ID and VULNETIX_API_KEY are not set for this repository, so the scan was skipped. Add both as repository secrets."
+          fi
+
   analyze:
     name: ${{ matrix.name }}
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -101,12 +129,17 @@ jobs:
 
   publish-tea:
     name: TEA
-    needs: analyze
+    needs: [preflight, analyze]
     # `needs` alone would skip this whenever any one of the scanner legs fails
     # or is cancelled. The design publishes whatever evidence exists, so a
     # partial scan must still publish. `!cancelled()` still stops it when the
     # whole run is cancelled.
-    if: ${{ !cancelled() }}
+    #
+    # The preflight condition is separate and not optional: `!cancelled()` is
+    # true when `analyze` was SKIPPED for want of credentials, so without it
+    # this job would run against a repository that has none and fail on exactly
+    # the error the preflight exists to report cleanly.
+    if: ${{ !cancelled() && needs.preflight.outputs.configured == 'true' }}
     uses: Vulnetix/cli/.github/workflows/tea-release.yml@tea-release-v1
     with:
       visibility: public
