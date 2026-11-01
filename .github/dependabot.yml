@@ -2,7 +2,8 @@
 # settings and run regardless of this file; this file adds the routine version
 # bumps. The yarn plugin is committed under .yarn/plugins because the
 # Dependabot sandbox cannot download it. Some alerts (glob, minimatch, undici)
-# are pinned by a direct dependency such as wrangler or vite, so the
+# are pinned by a parent (wrangler via miniflare, vue-tsc, npm-run-all2,
+# yarn's implicit node-gyp), so the
 # security-only jobs report update_not_possible until that parent moves.
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
