@@ -1,0 +1,46 @@
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Type-check and build
+    runs-on: [self-hosted, Linux, X64, vulnetix-local]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          # tsconfig.node.json extends @tsconfig/node22.
+          node-version: 22
+
+      - name: Enable Corepack
+        # Must follow Setup Node: the runner has no ambient Node on PATH.
+        run: corepack enable
+
+      - name: Cache Yarn
+        uses: actions/cache@v6
+        with:
+          path: ~/.yarn/berry/cache
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: yarn-${{ runner.os }}-
+
+      - name: Install Dependencies
+        run: yarn install --immutable
+
+      - name: Build
+        # wrangler types, then vue-tsc --build and vite build in parallel.
+        run: yarn run build
