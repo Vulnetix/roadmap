@@ -166,7 +166,6 @@ coverage
 # wrangler files
 .wrangler
 .dev.vars*
-.yarn/
 .DS_Store
 node_modules
 /dist
